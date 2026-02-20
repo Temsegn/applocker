@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../utils/responsive.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -65,18 +66,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
+          padding: EdgeInsets.all(Responsive.horizontalPadding(context)),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 24),
-                Image.asset(
-                  'assets/images/app_logo.png',
-                  width: 100,
-                  height: 100,
-                  fit: BoxFit.contain,
+                Center(
+                  child: Icon(
+                    Icons.lock_rounded,
+                    size: 88,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
                 const SizedBox(height: 24),
                 Text(

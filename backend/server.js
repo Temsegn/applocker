@@ -31,6 +31,7 @@ const lockedAppSchema = new mongoose.Schema({
   packageName: { type: String, required: true },
   appName: { type: String, required: true },
   iconPath: String,
+  iconBase64: String,
   lockType: { type: String, required: true },
   password: String,
   pin: String,

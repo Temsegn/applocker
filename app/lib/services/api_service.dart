@@ -1,10 +1,23 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/locked_app.dart';
 
 class ApiService {
   // Change this to your backend URL
-  static const String baseUrl = 'http://localhost:3000/api';
+  static const String baseUrl = 'https://applocker.onrender.com/api';
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+
+  Future<Map<String, String>> _getHeaders({bool includeAuth = false}) async {
+    final headers = {'Content-Type': 'application/json'};
+    if (includeAuth) {
+      final token = await _storage.read(key: 'auth_token');
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    }
+    return headers;
+  }
   
   Future<Map<String, dynamic>> login(String email, String password) async {
     try {
@@ -52,9 +65,10 @@ class ApiService {
 
   Future<List<LockedApp>> getLockedApps(String userId) async {
     try {
+      final headers = await _getHeaders(includeAuth: true);
       final response = await http.get(
         Uri.parse('$baseUrl/users/$userId/locked-apps'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
@@ -69,9 +83,10 @@ class ApiService {
 
   Future<void> addLockedApp(String userId, LockedApp app) async {
     try {
+      final headers = await _getHeaders(includeAuth: true);
       await http.post(
         Uri.parse('$baseUrl/users/$userId/locked-apps'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode(app.toJson()),
       );
     } catch (e) {
@@ -81,9 +96,10 @@ class ApiService {
 
   Future<void> removeLockedApp(String userId, String packageName) async {
     try {
+      final headers = await _getHeaders(includeAuth: true);
       await http.delete(
         Uri.parse('$baseUrl/users/$userId/locked-apps/$packageName'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
       );
     } catch (e) {
       // Handle error silently or log
@@ -92,9 +108,10 @@ class ApiService {
 
   Future<void> updateLockedApp(String userId, LockedApp app) async {
     try {
+      final headers = await _getHeaders(includeAuth: true);
       await http.put(
         Uri.parse('$baseUrl/users/$userId/locked-apps/${app.packageName}'),
-        headers: {'Content-Type': 'application/json'},
+        headers: headers,
         body: json.encode(app.toJson()),
       );
     } catch (e) {

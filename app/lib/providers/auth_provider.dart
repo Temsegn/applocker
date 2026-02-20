@@ -92,9 +92,10 @@ class AuthProvider with ChangeNotifier {
       final storedPinHash = await _storage.read(key: 'pin_hash');
       
       if (storedPinHash == null) {
-        // First time setup - save PIN
+        // First time setup - save PIN and its length
         final pinHash = _hashPin(pin);
         await _storage.write(key: 'pin_hash', value: pinHash);
+        await _storage.write(key: 'pin_length', value: pin.length.toString());
         _isAuthenticated = true;
         _isLoading = false;
         notifyListeners();
@@ -176,6 +177,7 @@ class AuthProvider with ChangeNotifier {
         if (pin != null) {
           final pinHash = _hashPin(pin);
           await _storage.write(key: 'pin_hash', value: pinHash);
+          await _storage.write(key: 'pin_length', value: pin.length.toString());
         }
         
         _isLoading = false;
@@ -208,6 +210,41 @@ class AuthProvider with ChangeNotifier {
     final bytes = utf8.encode(pin);
     final digest = sha256.convert(bytes);
     return digest.toString();
+  }
+
+  /// Verify PIN without changing auth state. Use for e.g. Settings overlay.
+  Future<bool> verifyPIN(String pin) async {
+    try {
+      final storedPinHash = await _storage.read(key: 'pin_hash');
+      if (storedPinHash == null) return false;
+      return _hashPin(pin) == storedPinHash;
+    } catch (e) {
+      debugPrint('verifyPIN error: $e');
+      return false;
+    }
+  }
+
+  static const int _defaultPinLength = 6;
+
+  /// PIN length used for AppLock login and Settings overlay. Stored when PIN is set.
+  Future<int> getPinLength() async {
+    try {
+      final s = await _storage.read(key: 'pin_length');
+      if (s == null) return _defaultPinLength;
+      final n = int.tryParse(s);
+      return n != null && n >= 4 && n <= 12 ? n : _defaultPinLength;
+    } catch (e) {
+      return _defaultPinLength;
+    }
+  }
+
+  /// True if user has already set a PIN (so we know length for login UI).
+  Future<bool> hasStoredPIN() async {
+    try {
+      return await _storage.read(key: 'pin_hash') != null;
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<bool> verifyUninstallPassword(String password) async {

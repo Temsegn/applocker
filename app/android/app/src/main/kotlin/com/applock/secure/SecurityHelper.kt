@@ -1,6 +1,7 @@
 package com.applock.secure
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import android.util.Log
@@ -10,11 +11,7 @@ object SecurityHelper {
     
     // Check if device is in Safe Mode
     fun isSafeMode(context: Context): Boolean {
-        return Settings.Global.getInt(
-            context.contentResolver,
-            Settings.Global.SAFE_BOOT_DISALLOWED,
-            0
-        ) == 0
+        return context.packageManager.isSafeMode
     }
     
     // Check if device is rooted

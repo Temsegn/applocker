@@ -3,13 +3,18 @@ package com.applock.secure.service
 import android.app.*
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.applock.secure.MainActivity
+import com.applock.secure.ScreenOffReceiver
 
 class AppLockForegroundService : Service() {
+    private var screenOffReceiver: ScreenOffReceiver? = null
+
     companion object {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "applock_foreground_channel"
@@ -38,13 +43,43 @@ class AppLockForegroundService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        registerScreenOffReceiver()
         Log.d("AppLock", "Foreground service created")
+    }
+
+    private fun registerScreenOffReceiver() {
+        if (screenOffReceiver != null) return
+        val receiver = ScreenOffReceiver()
+        screenOffReceiver = receiver
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(receiver, filter)
+        }
+        Log.d("AppLock", "ScreenOffReceiver registered in foreground service")
+    }
+
+    private fun unregisterScreenOffReceiver() {
+        screenOffReceiver?.let {
+            try {
+                unregisterReceiver(it)
+            } catch (e: Exception) {
+                Log.w("AppLock", "ScreenOffReceiver already unregistered")
+            }
+            screenOffReceiver = null
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                startForeground(NOTIFICATION_ID, createNotification())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                    startForeground(NOTIFICATION_ID, createNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+                } else {
+                    startForeground(NOTIFICATION_ID, createNotification())
+                }
                 Log.d("AppLock", "Foreground service started")
             }
             ACTION_STOP -> {
@@ -62,6 +97,7 @@ class AppLockForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        unregisterScreenOffReceiver()
         super.onDestroy()
         Log.d("AppLock", "Foreground service destroyed - will restart if needed")
         // Auto-restart if service is killed

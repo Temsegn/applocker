@@ -2,6 +2,8 @@ class LockedApp {
   final String packageName;
   final String appName;
   final String? iconPath;
+  /// Base64-encoded app icon (from InstalledApp), used for display.
+  final String? iconBase64;
   final LockType lockType;
   final String? password;
   final String? pin;
@@ -16,6 +18,7 @@ class LockedApp {
     required this.packageName,
     required this.appName,
     this.iconPath,
+    this.iconBase64,
     required this.lockType,
     this.password,
     this.pin,
@@ -32,6 +35,7 @@ class LockedApp {
       'packageName': packageName,
       'appName': appName,
       'iconPath': iconPath,
+      'iconBase64': iconBase64,
       'lockType': lockType.toString().split('.').last,
       'password': password,
       'pin': pin,
@@ -49,6 +53,7 @@ class LockedApp {
       packageName: json['packageName'],
       appName: json['appName'],
       iconPath: json['iconPath'],
+      iconBase64: json['iconBase64'],
       lockType: LockType.values.firstWhere(
         (e) => e.toString().split('.').last == json['lockType'],
         orElse: () => LockType.password,

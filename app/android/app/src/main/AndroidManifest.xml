@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.BIND_ACCESSIBILITY_SERVICE" />
     <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" />
     <uses-permission android:name="android.permission.GET_TASKS" />
@@ -91,6 +92,15 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="AppLock Protection Service" />
         </service>
+
+        <!-- Screen off: revoke "no PIN" for apps user had left -->
+        <receiver
+            android:name=".ScreenOffReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.SCREEN_OFF" />
+            </intent-filter>
+        </receiver>
 
         <!-- Boot Receiver for Safe Mode Detection -->
         <receiver

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_lock_provider.dart';
@@ -62,6 +63,7 @@ class _AppLockSetupScreenState extends State<AppLockSetupScreen> {
     final lockedApp = LockedApp(
       packageName: widget.app.packageName,
       appName: widget.app.appName,
+      iconBase64: widget.app.icon != null ? base64Encode(widget.app.icon!) : null,
       lockType: _selectedLockType,
       password: password,
       pin: pin,
@@ -138,7 +140,6 @@ class _AppLockSetupScreenState extends State<AppLockSetupScreen> {
                 ButtonSegment(value: LockType.pin, label: Text('PIN')),
                 ButtonSegment(value: LockType.password, label: Text('Password')),
                 ButtonSegment(value: LockType.pattern, label: Text('Pattern')),
-                ButtonSegment(value: LockType.biometric, label: Text('Biometric')),
               ],
               selected: {_selectedLockType},
               onSelectionChanged: (Set<LockType> newSelection) {
@@ -188,12 +189,6 @@ class _AppLockSetupScreenState extends State<AppLockSetupScreen> {
             if (_selectedLockType == LockType.pattern) ...[
               const Center(
                 child: Text('Pattern lock UI to be implemented'),
-              ),
-            ],
-            // Biometric
-            if (_selectedLockType == LockType.biometric) ...[
-              const Center(
-                child: Text('Biometric authentication will be used'),
               ),
             ],
             const SizedBox(height: 24),

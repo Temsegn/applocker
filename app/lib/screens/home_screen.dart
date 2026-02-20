@@ -1,14 +1,15 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_lock_provider.dart';
 import '../models/locked_app.dart';
+import '../utils/responsive.dart';
 import 'app_list_screen.dart';
 import 'settings_screen.dart';
 import '../services/device_admin_service.dart';
 import '../services/accessibility_service.dart';
 import '../services/foreground_service.dart';
 import '../services/security_service.dart';
-import '../models/locked_app.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -63,37 +64,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _initializeDefaultLocks() async {
-    final provider = Provider.of<AppLockProvider>(context, listen: false);
-    
-    // Default critical apps to lock: Settings and Package Installer
-    const defaultApps = [
-      {
-        'packageName': 'com.android.settings',
-        'appName': 'Settings',
-        'lockType': LockType.pin,
-      },
-      {
-        'packageName': 'com.android.packageinstaller',
-        'appName': 'Package Installer',
-        'lockType': LockType.pin,
-      },
-    ];
-
-    for (final appData in defaultApps) {
-      final existingApp = provider.getLockedApp(appData['packageName'] as String);
-      if (existingApp == null) {
-        // Check if user wants to lock these by default
-        // For now, we'll add them but they can be unlocked
-        final app = LockedApp(
-          packageName: appData['packageName'] as String,
-          appName: appData['appName'] as String,
-          lockType: appData['lockType'] as LockType,
-          pin: '0000', // Default PIN - user should change this
-          isLocked: true,
-        );
-        await provider.addAppToLock(app);
-      }
-    }
+    // Do not auto-lock Settings or Package Installer.
+    // User can add them from All Apps and toggle lock ON/OFF as needed.
+    // Lock Settings only if you want to prevent force stop and app disable.
   }
 
   void _showSecurityAlert(SecurityStatus status) {
@@ -144,7 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('AppLock'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings),
+            icon: const Icon(Icons.settings_outlined),
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const SettingsScreen()),
@@ -187,78 +160,116 @@ class LockedAppsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final padding = Responsive.horizontalPadding(context);
     return Consumer<AppLockProvider>(
       builder: (context, provider, child) {
         if (provider.isLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+          );
         }
 
         if (provider.lockedApps.isEmpty) {
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.lock_open,
-                  size: 64,
-                  color: Colors.grey,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No locked apps yet',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Go to All Apps to lock your first app',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey,
-                      ),
-                ),
-              ],
+            child: Padding(
+              padding: EdgeInsets.all(padding * 2),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.lock_open_rounded,
+                    size: 72,
+                    color: theme.colorScheme.primary.withOpacity(0.5),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'No locked apps',
+                    style: theme.textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Open All Apps and tap an app to lock it',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'To protect AppLock from force stop: add Settings in All Apps and turn its lock ON when needed. You can turn it OFF anytime to use Settings freely.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
             ),
           );
         }
 
         return ListView.builder(
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.symmetric(horizontal: padding, vertical: 12),
+          cacheExtent: 200,
           itemCount: provider.lockedApps.length,
           itemBuilder: (context, index) {
             final app = provider.lockedApps[index];
             return Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              child: ListTile(
-                leading: CircleAvatar(
-                  child: app.iconPath != null
-                      ? Image.asset(app.iconPath!)
-                      : const Icon(Icons.android),
+                child: ListTile(
+                  leading: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: app.iconBase64 != null
+                        ? Image.memory(
+                            base64Decode(app.iconBase64!),
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                          )
+                        : CircleAvatar(
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Icon(Icons.android, color: theme.colorScheme.primary),
+                          ),
+                  ),
+                  title: Text(
+                    app.appName,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: Text(
+                    app.lockType.toString().split('.').last,
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  trailing: Switch(
+                    value: app.isLocked,
+                    onChanged: (value) {
+                      final updatedApp = LockedApp(
+                        packageName: app.packageName,
+                        appName: app.appName,
+                        iconPath: app.iconPath,
+                        iconBase64: app.iconBase64,
+                        lockType: app.lockType,
+                        password: app.password,
+                        pin: app.pin,
+                        pattern: app.pattern,
+                        isLocked: value,
+                        isHidden: app.isHidden,
+                        isBlocked: app.isBlocked,
+                        lockScheduleStart: app.lockScheduleStart,
+                        lockScheduleEnd: app.lockScheduleEnd,
+                      );
+                      provider.updateLockedApp(updatedApp);
+                    },
+                  ),
                 ),
-                title: Text(app.appName),
-                subtitle: Text('Locked with ${app.lockType.toString().split('.').last}'),
-                trailing: Switch(
-                  value: app.isLocked,
-                  onChanged: (value) {
-                    final updatedApp = LockedApp(
-                      packageName: app.packageName,
-                      appName: app.appName,
-                      iconPath: app.iconPath,
-                      lockType: app.lockType,
-                      password: app.password,
-                      pin: app.pin,
-                      pattern: app.pattern,
-                      isLocked: value,
-                      isHidden: app.isHidden,
-                      isBlocked: app.isBlocked,
-                      lockScheduleStart: app.lockScheduleStart,
-                      lockScheduleEnd: app.lockScheduleEnd,
-                    );
-                    provider.updateLockedApp(updatedApp);
-                  },
-                ),
-                onTap: () {
-                  // Navigate to app settings
-                },
-              ),
             );
           },
         );

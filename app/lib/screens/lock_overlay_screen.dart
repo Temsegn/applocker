@@ -1,8 +1,12 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_lock_provider.dart';
+import '../providers/auth_provider.dart';
 import '../models/locked_app.dart';
+import '../utils/responsive.dart';
 import '../widgets/pin_input_widget.dart';
+import '../services/app_launcher_service.dart';
 
 class LockOverlayScreen extends StatefulWidget {
   final String packageName;
@@ -20,6 +24,19 @@ class _LockOverlayScreenState extends State<LockOverlayScreen> {
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
   String? _errorMessage;
+  int _appPinLength = 4;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppPinLength();
+  }
+
+  Future<void> _loadAppPinLength() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final len = await auth.getPinLength();
+    if (mounted) setState(() => _appPinLength = len);
+  }
 
   @override
   void dispose() {
@@ -37,9 +54,6 @@ class _LockOverlayScreenState extends State<LockOverlayScreen> {
       case LockType.pin:
         // PIN verification will be handled by PinInputWidget callback
         break;
-      case LockType.biometric:
-        // Biometric verification
-        break;
       case LockType.pattern:
         // Pattern verification
         break;
@@ -48,7 +62,8 @@ class _LockOverlayScreenState extends State<LockOverlayScreen> {
     if (isValid) {
       final provider = Provider.of<AppLockProvider>(context, listen: false);
       provider.setCurrentLockedApp(null);
-      Navigator.of(context).pop();
+      if (mounted) Navigator.of(context).pop();
+      await AppLauncherService.launchApp(app.packageName);
     } else {
       setState(() {
         _errorMessage = 'Invalid password. Please try again.';
@@ -61,9 +76,18 @@ class _LockOverlayScreenState extends State<LockOverlayScreen> {
     final provider = Provider.of<AppLockProvider>(context, listen: false);
     final app = provider.getLockedApp(widget.packageName);
 
+    bool valid = false;
     if (app != null && app.pin == pin) {
+      valid = true;
+    } else if (widget.packageName == 'com.android.settings') {
+      // Settings overlay: also accept AppLock login PIN (no separate "default" password)
+      valid = await Provider.of<AuthProvider>(context, listen: false).verifyPIN(pin);
+    }
+    if (valid) {
       provider.setCurrentLockedApp(null);
-      Navigator.of(context).pop();
+      final packageName = app?.packageName ?? widget.packageName;
+      if (mounted) Navigator.of(context).pop();
+      await AppLauncherService.launchApp(packageName);
     } else {
       setState(() {
         _errorMessage = 'Invalid PIN. Please try again.';
@@ -79,127 +103,223 @@ class _LockOverlayScreenState extends State<LockOverlayScreen> {
         builder: (context, provider, child) {
           final app = provider.getLockedApp(widget.packageName);
           
+          final pad = Responsive.horizontalPadding(context);
+          const surfaceDark = Color(0xFF1C1C1E);
+          const onSurfaceDark = Color(0xFFE5E5EA);
+          const onSurfaceVariant = Color(0xFF8E8E93);
+
+          // Settings (Protect AppLock in system Settings) with no LockedApp entry: use AppLock PIN
+          if (app == null && widget.packageName == 'com.android.settings') {
+            return Scaffold(
+              backgroundColor: surfaceDark,
+              body: SafeArea(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(pad * 1.5),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.lock_rounded, size: 72, color: onSurfaceDark),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'AppLock protection',
+                          style: TextStyle(
+                            color: onSurfaceDark,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Enter your AppLock PIN to open this Settings screen',
+                          style: TextStyle(color: onSurfaceVariant, fontSize: 15),
+                          textAlign: TextAlign.center,
+                        ),
+                        SizedBox(height: Responsive.sectionSpacing(context)),
+                        PinInputWidget(
+                          onCompleted: _handlePINVerification,
+                          length: _appPinLength,
+                          theme: PinInputTheme.dark,
+                        ),
+                        if (_errorMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: Color(0xFFFF453A), fontSize: 14),
+                            ),
+                          ),
+                        const SizedBox(height: 24),
+                        TextButton(
+                          onPressed: () {
+                            Provider.of<AppLockProvider>(context, listen: false).setCurrentLockedApp(null);
+                            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+                          },
+                          child: const Text('Open AppLock', style: TextStyle(color: onSurfaceVariant)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }
           if (app == null) {
-            return const SizedBox.shrink();
+            return Scaffold(
+              backgroundColor: surfaceDark,
+              body: SafeArea(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(pad * 1.5),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.lock_rounded, size: 72, color: onSurfaceDark),
+                        const SizedBox(height: 20),
+                        const Text(
+                          'This app is locked',
+                          style: TextStyle(
+                            color: onSurfaceDark,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 28),
+                        TextButton(
+                          onPressed: () {
+                            Provider.of<AppLockProvider>(context, listen: false).setCurrentLockedApp(null);
+                            Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
+                          },
+                          child: const Text('Open AppLock', style: TextStyle(color: onSurfaceVariant)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
           }
 
           return Scaffold(
-            backgroundColor: Colors.black87,
+            backgroundColor: surfaceDark,
             body: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.lock,
-                      size: 80,
-                      color: Colors.white,
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      app.appName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(pad * 1.5),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (app.iconBase64 != null)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.memory(
+                            base64Decode(app.iconBase64!),
+                            width: 64,
+                            height: 64,
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                      else
+                        const Icon(Icons.lock_rounded, size: 72, color: onSurfaceDark),
+                      const SizedBox(height: 20),
+                      Text(
+                        app.appName,
+                        style: const TextStyle(
+                          color: onSurfaceDark,
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'This app is locked',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 16,
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.packageName == 'com.android.settings'
+                            ? 'Enter PIN or your AppLock PIN to open'
+                            : 'Enter PIN or password to open',
+                        style: const TextStyle(color: onSurfaceVariant, fontSize: 15),
                       ),
-                    ),
-                    const SizedBox(height: 48),
-                    // Password Input
-                    if (app.lockType == LockType.password) ...[
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: !_isPasswordVisible,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          labelStyle: const TextStyle(color: Colors.white70),
-                          prefixIcon: const Icon(Icons.lock, color: Colors.white70),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _isPasswordVisible ? Icons.visibility : Icons.visibility_off,
-                              color: Colors.white70,
+                      SizedBox(height: Responsive.sectionSpacing(context)),
+                      if (app.lockType == LockType.password) ...[
+                        TextField(
+                          controller: _passwordController,
+                          obscureText: !_isPasswordVisible,
+                          style: const TextStyle(color: onSurfaceDark, fontSize: 16),
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            labelStyle: const TextStyle(color: onSurfaceVariant),
+                            prefixIcon: const Icon(Icons.lock_outline_rounded, color: onSurfaceVariant),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _isPasswordVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                                color: onSurfaceVariant,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _isPasswordVisible = !_isPasswordVisible),
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _isPasswordVisible = !_isPasswordVisible;
-                              });
-                            },
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white70),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white70),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: Colors.white),
+                            filled: true,
+                            fillColor: const Color(0xFF2C2C2E),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(color: onSurfaceVariant, width: 0.5),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              borderSide: const BorderSide(color: Color(0xFF0A84FF), width: 2),
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 16),
-                      if (_errorMessage != null)
-                        Text(
-                          _errorMessage!,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () => _verifyAndUnlock(app),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 48,
-                            vertical: 16,
-                          ),
-                        ),
-                        child: const Text('Unlock'),
-                      ),
-                    ],
-                    // PIN Input
-                    if (app.lockType == LockType.pin) ...[
-                      PinInputWidget(
-                        onCompleted: _handlePINVerification,
-                        length: 4,
-                      ),
-                      if (_errorMessage != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 16),
-                          child: Text(
+                        if (_errorMessage != null) ...[
+                          const SizedBox(height: 12),
+                          Text(
                             _errorMessage!,
-                            style: const TextStyle(color: Colors.red),
+                            style: const TextStyle(color: Color(0xFFFF453A), fontSize: 14),
+                          ),
+                        ],
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton(
+                            onPressed: () => _verifyAndUnlock(app),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: const Color(0xFF0A84FF),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: const Text('Unlock'),
                           ),
                         ),
-                    ],
-                    // Biometric
-                    if (app.lockType == LockType.biometric) ...[
-                      ElevatedButton.icon(
+                      ],
+                      if (app.lockType == LockType.pin) ...[
+                        PinInputWidget(
+                          onCompleted: _handlePINVerification,
+                          length: widget.packageName == 'com.android.settings'
+                              ? _appPinLength
+                              : (app.pin?.length ?? 4),
+                          theme: PinInputTheme.dark,
+                        ),
+                        if (_errorMessage != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 16),
+                            child: Text(
+                              _errorMessage!,
+                              style: const TextStyle(color: Color(0xFFFF453A), fontSize: 14),
+                            ),
+                          ),
+                      ],
+                      const SizedBox(height: 24),
+                      TextButton(
                         onPressed: () {
-                          // Implement biometric unlock
+                          Provider.of<AppLockProvider>(context, listen: false).setCurrentLockedApp(null);
+                          Navigator.of(context).pushNamedAndRemoveUntil('/home', (route) => false);
                         },
-                        icon: const Icon(Icons.fingerprint),
-                        label: const Text('Authenticate'),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 48,
-                            vertical: 16,
-                          ),
-                        ),
+                        child: const Text('Open AppLock', style: TextStyle(color: onSurfaceVariant)),
                       ),
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

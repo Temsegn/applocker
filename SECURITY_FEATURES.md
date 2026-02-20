@@ -35,13 +35,9 @@ This document outlines all the security features implemented to achieve strong d
 - **Alerts**: Shows security warnings when compromise is detected
 - **Protection Level**: Alerts user/admin about potential security risks
 
-### 4. **Settings & Package Installer Locking**
-- **Location**: `app/lib/screens/home_screen.dart` (`_initializeDefaultLocks`)
-- **Purpose**: Locks critical system apps by default
-- **Default Locked Apps**:
-  - `com.android.settings` (Settings)
-  - `com.android.packageinstaller` (Package Installer)
-- **Protection Level**: Prevents users from accessing settings or installing apps to bypass locks
+### 4. **No Default Locked Apps**
+- **Location**: `app/lib/screens/home_screen.dart` (`_initializeDefaultLocks`), `app/lib/providers/app_lock_provider.dart`
+- **Behavior**: No apps are locked by default (including Settings and Package Installer). Users add and toggle locks from Locked Apps / All Apps. A one-time migration removes any previously auto-added Settings/Package Installer entries.
 
 ### 5. **Enhanced Overlay PIN Protection**
 - **Location**: 

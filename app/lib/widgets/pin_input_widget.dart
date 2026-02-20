@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+enum PinInputTheme { light, dark }
+
 class PinInputWidget extends StatefulWidget {
   final Function(String) onCompleted;
   final int length;
+  final PinInputTheme theme;
 
   const PinInputWidget({
     super.key,
     required this.onCompleted,
-    this.length = 4,
+    this.length = 6,
+    this.theme = PinInputTheme.light,
   });
 
   @override
@@ -67,14 +71,18 @@ class _PinInputWidgetState extends State<PinInputWidget> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = widget.theme == PinInputTheme.dark;
+    final borderColor = isDark ? const Color(0xFF8E8E93) : null;
+    final fillColor = isDark ? const Color(0xFF2C2C2E) : null;
+    final textColor = isDark ? const Color(0xFFE5E5EA) : null;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(
         widget.length,
         (index) => Container(
-          width: 60,
-          height: 60,
-          margin: const EdgeInsets.symmetric(horizontal: 8),
+          width: 56,
+          height: 56,
+          margin: const EdgeInsets.symmetric(horizontal: 6),
           child: TextField(
             controller: _controllers[index],
             focusNode: _focusNodes[index],
@@ -82,14 +90,31 @@ class _PinInputWidgetState extends State<PinInputWidget> {
             keyboardType: TextInputType.number,
             maxLength: 1,
             obscureText: true,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w600,
+              color: textColor,
             ),
             decoration: InputDecoration(
               counterText: '',
+              filled: isDark,
+              fillColor: fillColor,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: borderColor ?? Theme.of(context).colorScheme.outline,
+                  width: 1.5,
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide(
+                  color: isDark ? const Color(0xFF0A84FF) : Theme.of(context).colorScheme.primary,
+                  width: 2,
+                ),
               ),
             ),
             inputFormatters: [
